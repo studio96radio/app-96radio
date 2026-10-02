@@ -1,0 +1,35 @@
+name: studio96
+description: "96 RADIO - Missione Bella Musica. App ufficiale della radio di Cagliari."
+publish_to: 'none'
+
+# Versione mostrata sullo store (8.0.0) + numero di build (sovrascritto da Codemagic)
+version: 8.0.0+800
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  audio_service: ^0.18.19
+  just_audio: ^0.10.6
+  audio_session: ^0.2.4
+  http: ^1.6.0
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo-white.png
+
+# Icona dell'app generata da assets/icon-1024.png (comando: dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  ios: true
+  android: false
+  image_path: "assets/icon-1024.png"
+  remove_alpha_ios: true
