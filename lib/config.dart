@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 /// Tutti i dati della radio in un unico posto: per cambiare un link
 /// o un colore basta modificare questo file.
@@ -44,13 +45,14 @@ class Radio96 {
   ];
 
   /// Social (si aprono nell'app del social, se installata).
-  static const List<Collegamento> social = [
-    Collegamento('Facebook', Icons.facebook_rounded,
+  static const List<Social> social = [
+    Social('Facebook', FontAwesomeIcons.facebook,
         'https://www.facebook.com/STUDIO96RADIO'),
-    Collegamento('Instagram', Icons.camera_alt_rounded,
+    Social('Instagram', FontAwesomeIcons.instagram,
         'https://www.instagram.com/96_RADIO'),
-    Collegamento('X', Icons.alternate_email_rounded,
-        'https://x.com/RadioNovesei96'),
+    Social('X', FontAwesomeIcons.xTwitter, 'https://x.com/RadioNovesei96'),
+    Social('WhatsApp', FontAwesomeIcons.whatsapp,
+        'https://whatsapp.com/channel/0029VaEtA443GJOzg9epMv0A'),
   ];
 }
 
@@ -59,4 +61,12 @@ class Collegamento {
   final IconData icona;
   final String url;
   const Collegamento(this.titolo, this.icona, this.url);
+}
+
+/// Pulsante social con il logo ufficiale (Font Awesome).
+class Social {
+  final String titolo;
+  final FaIconData icona;
+  final String url;
+  const Social(this.titolo, this.icona, this.url);
 }

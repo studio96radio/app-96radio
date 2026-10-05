@@ -4,12 +4,19 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
 import 'radio_handler.dart';
 
 late final RadioHandler radio;
+late final SharedPreferences preferenze;
+
+/// Chiave dell'impostazione "Avvio automatico" (attiva di serie).
+const String chiaveAvvioAutomatico = 'avvio_automatico';
+bool get avvioAutomatico => preferenze.getBool(chiaveAvvioAutomatico) ?? true;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +31,11 @@ Future<void> main() async {
       androidStopForegroundOnPause: true,
     ),
   );
+  preferenze = await SharedPreferences.getInstance();
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   runApp(const App96());
+  // All'apertura la diretta parte da sola, se l'utente non l'ha disattivato.
+  if (avvioAutomatico) radio.play();
 }
 
 class App96 extends StatelessWidget {
@@ -76,14 +86,14 @@ class _SchermataDirettaState extends State<SchermataDiretta>
     if (state == AppLifecycleState.resumed) radio.aggiornaInfo();
   }
 
-  Future<void> _apri(Collegamento c, {bool esterno = false}) async {
+  Future<void> _apri(String titolo, String url, {bool esterno = false}) async {
     final ok = await launchUrl(
-      Uri.parse(c.url),
+      Uri.parse(url),
       mode: esterno ? LaunchMode.externalApplication : LaunchMode.inAppBrowserView,
     );
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Impossibile aprire ${c.titolo}')),
+        SnackBar(content: Text('Impossibile aprire $titolo')),
       );
     }
   }
@@ -105,9 +115,23 @@ class _SchermataDirettaState extends State<SchermataDiretta>
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () {
                   Navigator.pop(context);
-                  _apri(s);
+                  _apri(s.titolo, s.url);
                 },
               ),
+            const Divider(indent: 16, endIndent: 16),
+            StatefulBuilder(
+              builder: (context, aggiorna) => SwitchListTile(
+                secondary:
+                    const Icon(Icons.play_circle_rounded, color: Radio96.fucsiaChiaro),
+                title: const Text('Avvio automatico'),
+                subtitle: const Text("La diretta parte all'apertura dell'app"),
+                value: avvioAutomatico,
+                onChanged: (attivo) async {
+                  await preferenze.setBool(chiaveAvvioAutomatico, attivo);
+                  aggiorna(() {});
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -156,7 +180,7 @@ class _SchermataDirettaState extends State<SchermataDiretta>
                       ),
                     ),
                     const Spacer(),
-                    _Social(onApri: (c) => _apri(c, esterno: true)),
+                    _Social(onApri: (c) => _apri(c.titolo, c.url, esterno: true)),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -366,7 +390,7 @@ class _PulsantePlay extends StatelessWidget {
 }
 
 class _Social extends StatelessWidget {
-  final void Function(Collegamento) onApri;
+  final void Function(Social) onApri;
   const _Social({required this.onApri});
 
   @override
@@ -379,7 +403,7 @@ class _Social extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: IconButton.filledTonal(
               onPressed: () => onApri(s),
-              icon: Icon(s.icona),
+              icon: FaIcon(s.icona, size: 20),
               tooltip: s.titolo,
             ),
           ),
