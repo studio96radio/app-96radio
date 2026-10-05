@@ -6,7 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 class Radio96 {
   static const String nome = '96 RADIO';
   static const String claim = 'Missione Bella Musica';
-  static const String frequenza = 'FM 95.9 Cagliari · in streaming in tutto il mondo';
+  static const String frequenza = 'FM 95.9 Cagliari e in streaming in tutto il mondo';
 
   /// Flusso audio della diretta (StreamingPulse).
   static const String streamUrl = 'https://de1.streamingpulse.com/ssl/9073';
