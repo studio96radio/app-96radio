@@ -18,6 +18,7 @@ dependencies:
   url_launcher: ^6.3.3
   shared_preferences: ^2.3.0
   font_awesome_flutter: ^11.0.0
+  flutter_native_splash: ^2.4.8
 
 dev_dependencies:
   flutter_test:
@@ -35,3 +36,12 @@ flutter_launcher_icons:
   android: false
   image_path: "assets/icon-1024.png"
   remove_alpha_ios: true
+
+# Schermata di apertura (splash): logo al centro sulle sfumature dell'app
+# (comando: dart run flutter_native_splash:create)
+flutter_native_splash:
+  background_image: assets/splash-bg.png
+  image: assets/splash-logo.png
+  ios: true
+  android: false
+  web: false
