@@ -46,6 +46,7 @@ class Radio96 {
 
   /// Social (si aprono nell'app del social, se installata).
   static const List<Social> social = [
+    Social.logo('96 RADIO', 'https://www.studio96.it/'),
     Social('Facebook', FontAwesomeIcons.facebook,
         'https://www.facebook.com/STUDIO96RADIO'),
     Social('Instagram', FontAwesomeIcons.instagram,
@@ -64,9 +65,11 @@ class Collegamento {
 }
 
 /// Pulsante social con il logo ufficiale (Font Awesome).
+/// Se [icona] è nulla, il pulsante mostra il logo 96 della radio.
 class Social {
   final String titolo;
-  final FaIconData icona;
+  final FaIconData? icona;
   final String url;
-  const Social(this.titolo, this.icona, this.url);
+  const Social(this.titolo, FaIconData this.icona, this.url);
+  const Social.logo(this.titolo, this.url) : icona = null;
 }

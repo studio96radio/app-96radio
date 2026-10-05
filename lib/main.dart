@@ -212,11 +212,17 @@ class _Intestazione extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Image.asset('assets/logo-white.png', width: 40, height: 40),
-        const SizedBox(width: 12),
+        // Stessa larghezza del pulsante menu, così la scritta resta al centro.
+        SizedBox(
+          width: 48,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Image.asset('assets/logo-white.png', width: 40, height: 40),
+          ),
+        ),
         const Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
                 Radio96.nome,
@@ -414,7 +420,9 @@ class _Social extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: IconButton.filledTonal(
               onPressed: () => onApri(s),
-              icon: FaIcon(s.icona, size: 20),
+              icon: s.icona == null
+                  ? Image.asset('assets/logo-white.png', width: 22, height: 22)
+                  : FaIcon(s.icona, size: 20),
               tooltip: s.titolo,
             ),
           ),
