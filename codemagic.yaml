@@ -49,4 +49,5 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Solo tester interni: niente invio alla revisione per tester esterni
+        submit_to_testflight: false
