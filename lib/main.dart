@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -18,8 +19,14 @@ late final SharedPreferences preferenze;
 const String chiaveAvvioAutomatico = 'avvio_automatico';
 bool get avvioAutomatico => preferenze.getBool(chiaveAvvioAutomatico) ?? true;
 
+/// Quanto resta visibile, almeno, la schermata di apertura con il logo.
+const Duration durataSplash = Duration(seconds: 1);
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final cronometro = Stopwatch()..start();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  // Tiene il logo a schermo finché non si decide di toglierlo.
+  FlutterNativeSplash.preserve(widgetsBinding: binding);
   final sessione = await AudioSession.instance;
   await sessione.configure(const AudioSessionConfiguration.music());
   radio = await AudioService.init(
@@ -36,6 +43,10 @@ Future<void> main() async {
   runApp(const App96());
   // All'apertura la diretta parte da sola, se l'utente non l'ha disattivato.
   if (avvioAutomatico) radio.play();
+  // Il logo resta almeno un secondo, poi compare l'app.
+  final resta = durataSplash - cronometro.elapsed;
+  if (resta > Duration.zero) await Future<void>.delayed(resta);
+  FlutterNativeSplash.remove();
 }
 
 class App96 extends StatelessWidget {
