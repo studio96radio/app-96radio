@@ -33,6 +33,9 @@ Future<void> main() async {
   ConfigRemota.caricaSalvate(preferenze);
   // ...poi quelle aggiornate dal sito (senza bloccare l'apertura).
   final configAggiornata = ConfigRemota.aggiorna(preferenze);
+  await RadioHandler.caricaDiario();
+  // Errori del servizio audio Android (prima restavano nascosti).
+  AudioService.asyncError.listen((e) => RadioHandler.annota('ERRORE servizio: $e'));
   final sessione = await AudioSession.instance;
   await sessione.configure(const AudioSessionConfiguration.music());
   radio = await AudioService.init(
@@ -448,6 +451,8 @@ class _PulsantePlay extends StatelessWidget {
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: radio.alterna,
+                // Tenendo premuto: diario di diagnostica.
+                onLongPress: () => mostraDiario(context),
                 child: SizedBox(
                   width: 84,
                   height: 84,
@@ -510,4 +515,44 @@ class _Social extends StatelessWidget {
       ],
     );
   }
+}
+
+
+/// Finestra con il diario di diagnostica (si apre tenendo premuto Play).
+void mostraDiario(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Diagnostica'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 420,
+        child: ValueListenableBuilder<List<String>>(
+          valueListenable: RadioHandler.diario,
+          builder: (context, righe, _) => SingleChildScrollView(
+            reverse: true,
+            child: SelectableText(
+              righe.join('\n'),
+              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => RadioHandler.svuotaDiario(),
+          child: const Text('Svuota'),
+        ),
+        TextButton(
+          onPressed: () => Clipboard.setData(
+              ClipboardData(text: RadioHandler.diario.value.join('\n'))),
+          child: const Text('Copia'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Chiudi'),
+        ),
+      ],
+    ),
+  );
 }

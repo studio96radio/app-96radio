@@ -2,17 +2,54 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'config.dart';
 
 /// Gestisce la diretta: play/pausa, audio a schermo spento,
 /// titolo e copertina sulla schermata di blocco.
 class RadioHandler extends BaseAudioHandler {
+  // ---- Diario di diagnostica (tenere premuto il pulsante Play) ----
+  static final ValueNotifier<List<String>> diario = ValueNotifier<List<String>>([]);
+  static const String _chiaveDiario = 'diario_diagnostica';
+
+  static void annota(String testo) {
+    final o = DateTime.now();
+    String d(int n) => n.toString().padLeft(2, '0');
+    final riga = '${d(o.hour)}:${d(o.minute)}:${d(o.second)} $testo';
+    final nuovo = [...diario.value, riga];
+    diario.value = nuovo.length > 120 ? nuovo.sublist(nuovo.length - 120) : nuovo;
+    unawaited(SharedPreferences.getInstance()
+        .then((p) => p.setStringList(_chiaveDiario, diario.value))
+        .catchError((_) => false));
+  }
+
+  /// Carica il diario della volta precedente (utile se l'app è stata chiusa
+  /// dal telefono) e segna l'inizio di una nuova apertura.
+  static Future<void> caricaDiario() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      diario.value = p.getStringList(_chiaveDiario) ?? [];
+    } catch (_) {}
+    annota('===== APERTURA APP =====');
+  }
+
+  static Future<void> svuotaDiario() async {
+    diario.value = [];
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.remove(_chiaveDiario);
+    } catch (_) {}
+  }
+
+  ProcessingState? _ultimoStatoAnnotato;
+  bool? _ultimoPlayingAnnotato;
   final AudioPlayer _player = AudioPlayer();
   Timer? _timer;
   String _ultimoTitolo = '';
@@ -40,12 +77,19 @@ class RadioHandler extends BaseAudioHandler {
     mediaItem.add(_creaMediaItem('', null));
     _player.playbackEventStream.listen(
       (_) => _aggiornaStato(),
-      onError: (Object e, StackTrace st) => _gestisciErrore(),
+      onError: (Object e, StackTrace st) {
+        annota('ERRORE lettore: $e');
+        _gestisciErrore();
+      },
     );
     _player.playingStream.listen((_) => _aggiornaStato());
     // Android: quando il server chiude la connessione la diretta risulta
     // "finita" (completed). Per una radio non deve succedere: si riconnette.
     _player.processingStateStream.listen((stato) {
+      if (stato != _ultimoStatoAnnotato) {
+        _ultimoStatoAnnotato = stato;
+        annota('stato lettore: ${stato.name}');
+      }
       if (stato == ProcessingState.completed && _vuoleSuonare) _gestisciErrore();
       if (stato == ProcessingState.ready && _vuoleSuonare) {
         // Diretta ripartita: si torna allo stato normale.
@@ -60,6 +104,10 @@ class RadioHandler extends BaseAudioHandler {
   }
 
   void _controlla() {
+    if (_player.playing != _ultimoPlayingAnnotato) {
+      _ultimoPlayingAnnotato = _player.playing;
+      annota('suona: ${_player.playing}');
+    }
     if (!_vuoleSuonare || _attesaInCorso) {
       _mutaDa = null;
       return;
@@ -74,6 +122,7 @@ class RadioHandler extends BaseAudioHandler {
     _mutaDa ??= DateTime.now();
     if (DateTime.now().difference(_mutaDa!) > const Duration(seconds: 15)) {
       _mutaDa = null;
+      annota('controllo: diretta muta da 15 s, ricollego');
       _gestisciErrore();
     }
   }
@@ -82,8 +131,9 @@ class RadioHandler extends BaseAudioHandler {
     if (!Platform.isAndroid) return;
     try {
       await _rete.invokeMethod(sveglio ? 'tieniSveglia' : 'rilascia');
-    } catch (_) {
-      // Non disponibile: si va avanti lo stesso.
+      annota('wifi ${sveglio ? "tenuto sveglio" : "rilasciato"}');
+    } catch (e) {
+      annota('ERRORE wifi: $e');
     }
   }
 
@@ -91,6 +141,7 @@ class RadioHandler extends BaseAudioHandler {
 
   @override
   Future<void> play() async {
+    annota('PLAY');
     erroreConnessione = false;
     _vuoleSuonare = true;
     _tentativi = 0;
@@ -113,7 +164,8 @@ class RadioHandler extends BaseAudioHandler {
       if (!_vuoleSuonare) return;
       // Non si attende: per just_audio il Future di play() termina solo alla pausa.
       unawaited(_player.play());
-    } catch (_) {
+    } catch (e) {
+      annota('ERRORE avvio: $e');
       _gestisciErrore();
     }
   }
@@ -125,6 +177,7 @@ class RadioHandler extends BaseAudioHandler {
     _attesaInCorso = true;
     _riconnessioneInCorso = true;
     _tentativi++;
+    annota('riconnessione n. $_tentativi');
     // Intanto la notifica resta attiva (Android non deve chiudere il servizio
     // audio) e il pulsante mostra il caricamento.
     playbackState.add(playbackState.value.copyWith(
@@ -143,6 +196,7 @@ class RadioHandler extends BaseAudioHandler {
   /// alla ripresa si riascolta la diretta in tempo reale.
   @override
   Future<void> pause() async {
+    annota('PAUSA');
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
     unawaited(_wifi(false));
@@ -151,6 +205,7 @@ class RadioHandler extends BaseAudioHandler {
 
   @override
   Future<void> stop() async {
+    annota('STOP');
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
     unawaited(_wifi(false));
@@ -162,7 +217,10 @@ class RadioHandler extends BaseAudioHandler {
   /// la diretta si ferma e la notifica sparisce. Senza questo, su alcuni
   /// telefoni (es. Realme) la musica continuava a suonare.
   @override
-  Future<void> onTaskRemoved() => stop();
+  Future<void> onTaskRemoved() {
+    annota('app chiusa dalle recenti');
+    return stop();
+  }
 
   Future<void> alterna() => _vuoleSuonare ? pause() : play();
 
@@ -228,6 +286,7 @@ class RadioHandler extends BaseAudioHandler {
       _riconnetti();
       return;
     }
+    annota('ERRORE: tentativi esauriti, mi fermo');
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
     unawaited(_wifi(false));
