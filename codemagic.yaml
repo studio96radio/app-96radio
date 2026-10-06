@@ -19,7 +19,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: it.radio.studio96
       vars:
-        VERSIONE: "8.0.0"
+        VERSIONE: "8.1.0"
     scripts:
       - name: Crea la parte iPhone del progetto
         script: |
@@ -65,7 +65,7 @@ workflows:
         # (Settings > Code signing identities > Android keystores)
         - chiave_android_96radio
       vars:
-        VERSIONE: "8.0.0"
+        VERSIONE: "8.1.0"
         # Nome del pacchetto Android: provvisorio finche' non si decide
         # (dipende dalla risposta di Looksomething sul trasferimento)
         PACCHETTO_ANDROID: "it.radio.studio96"

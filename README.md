@@ -11,7 +11,12 @@ App Flutter (iPhone, poi Android) della radio:
 
 ## Dove cambiare le cose
 
-Link, colori, indirizzo dello stream: tutto in `lib/config.dart`.
+**Senza aggiornare l'app:** streaming, colori, immagine di sfondo, avviso, menu e social
+si cambiano dal pannello **App 96 RADIO** nel WordPress di studio96.it
+(snippet in `wordpress/snippet-app-96radio.php`). L'app lo legge a ogni apertura.
+
+**Con un aggiornamento dell'app:** icona, nome, schermata di apertura e valori di partenza
+(`lib/config.dart`).
 
 ## Compilazione
 
@@ -20,4 +25,4 @@ La fa Codemagic con il file `codemagic.yaml`:
 - workflow "iPhone -> TestFlight"
 - workflow "Android -> AAB" (prepara la parte Android con `scripts/android_setup.py`;
   la chiave di firma si chiama `chiave_android_96radio` su Codemagic)
-Bundle ID: `it.radio.studio96` · versione `8.0.0`.
+Bundle ID: `it.radio.studio96` · versione `8.1.0`.

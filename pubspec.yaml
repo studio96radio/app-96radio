@@ -2,8 +2,8 @@ name: studio96
 description: "96 RADIO - Missione Bella Musica. App ufficiale della radio di Cagliari."
 publish_to: 'none'
 
-# Versione mostrata sullo store (8.0.0) + numero di build (sovrascritto da Codemagic)
-version: 8.0.0+800
+# Versione mostrata sullo store (8.1.0) + numero di build (sovrascritto da Codemagic)
+version: 8.1.0+810
 
 environment:
   sdk: ^3.6.0

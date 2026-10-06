@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
 import 'radio_handler.dart';
+import 'remote_config.dart';
 
 late final RadioHandler radio;
 late final SharedPreferences preferenze;
@@ -27,6 +28,11 @@ Future<void> main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   // Tiene il logo a schermo finché non si decide di toglierlo.
   FlutterNativeSplash.preserve(widgetsBinding: binding);
+  preferenze = await SharedPreferences.getInstance();
+  // Impostazioni del pannello "App 96 RADIO": prima le ultime salvate...
+  ConfigRemota.caricaSalvate(preferenze);
+  // ...poi quelle aggiornate dal sito (senza bloccare l'apertura).
+  final configAggiornata = ConfigRemota.aggiorna(preferenze);
   final sessione = await AudioSession.instance;
   await sessione.configure(const AudioSessionConfiguration.music());
   radio = await AudioService.init(
@@ -38,9 +44,10 @@ Future<void> main() async {
       androidStopForegroundOnPause: true,
     ),
   );
-  preferenze = await SharedPreferences.getInstance();
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   runApp(const App96());
+  // Aspetta al massimo 2 secondi le impostazioni nuove (es. streaming cambiato).
+  await configAggiornata.timeout(const Duration(seconds: 2), onTimeout: () {});
   // All'apertura la diretta parte da sola, se l'utente non l'ha disattivato.
   if (avvioAutomatico) radio.play();
   // Il logo resta almeno un secondo, poi compare l'app.
@@ -54,6 +61,13 @@ class App96 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ConfigRemota.versione,
+      builder: (context, _, __) => _app(),
+    );
+  }
+
+  Widget _app() {
     return MaterialApp(
       title: Radio96.nome,
       debugShowCheckedModeBanner: false,
@@ -94,7 +108,10 @@ class _SchermataDirettaState extends State<SchermataDiretta>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Tornando nell'app, aggiorna subito titolo e copertina.
-    if (state == AppLifecycleState.resumed) radio.aggiornaInfo();
+    if (state == AppLifecycleState.resumed) {
+      radio.aggiornaInfo();
+      ConfigRemota.aggiorna(preferenze);
+    }
   }
 
   Future<void> _apri(String titolo, String url, {bool esterno = false}) async {
@@ -133,7 +150,7 @@ class _SchermataDirettaState extends State<SchermataDiretta>
             StatefulBuilder(
               builder: (context, aggiorna) => SwitchListTile(
                 secondary:
-                    const Icon(Icons.play_circle_rounded, color: Radio96.fucsiaChiaro),
+                    Icon(Icons.play_circle_rounded, color: Radio96.fucsiaChiaro),
                 title: const Text('Avvio automatico'),
                 subtitle: const Text("La diretta parte all'apertura dell'app"),
                 value: avvioAutomatico,
@@ -151,15 +168,32 @@ class _SchermataDirettaState extends State<SchermataDiretta>
 
   @override
   Widget build(BuildContext context) {
+    // Si ridisegna quando arrivano impostazioni nuove dal pannello.
+    return ValueListenableBuilder<int>(
+      valueListenable: ConfigRemota.versione,
+      builder: (context, _, __) => _schermata(context),
+    );
+  }
+
+  Widget _schermata(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [Radio96.sfondo1, Radio96.sfondo2, Radio96.sfondo3],
-            stops: [0, 0.55, 1],
+            stops: const [0, 0.55, 1],
           ),
+          // Immagine di sfondo facoltativa, sfumata sopra i colori
+          image: Radio96.sfondoImmagine.isEmpty
+              ? null
+              : DecorationImage(
+                  image: NetworkImage(Radio96.sfondoImmagine),
+                  fit: BoxFit.cover,
+                  opacity: 0.35,
+                  onError: (_, __) {},
+                ),
         ),
         child: SafeArea(
           child: LayoutBuilder(
@@ -175,12 +209,18 @@ class _SchermataDirettaState extends State<SchermataDiretta>
                   children: [
                     const SizedBox(height: 8),
                     _Intestazione(onMenu: _mostraMenu),
+                    if (Radio96.avvisoTesto.isNotEmpty)
+                      _Avviso(
+                        onTap: Radio96.avvisoLink.isEmpty
+                            ? null
+                            : () => _apri('il link', Radio96.avvisoLink),
+                      ),
                     const Spacer(),
                     _Copertina(lato: latoCopertina),
                     const SizedBox(height: 24),
                     const _InfoBrano(),
                     const SizedBox(height: 24),
-                    const _PulsantePlay(),
+                    _PulsantePlay(),
                     const SizedBox(height: 14),
                     Text(
                       Radio96.frequenza,
@@ -245,6 +285,46 @@ class _Intestazione extends StatelessWidget {
           tooltip: 'Menu',
         ),
       ],
+    );
+  }
+}
+
+/// Avviso in evidenza scritto dal pannello "App 96 RADIO".
+class _Avviso extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _Avviso({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.campaign_rounded, color: Radio96.fucsiaChiaro),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    Radio96.avvisoTesto,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (onTap != null)
+                  const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
