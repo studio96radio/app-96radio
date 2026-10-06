@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
+
+import 'package:flutter/services.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:http/http.dart' as http;
@@ -23,7 +26,15 @@ class RadioHandler extends BaseAudioHandler {
   bool _riconnessioneInCorso = false;
   bool _attesaInCorso = false;
   int _tentativi = 0;
-  static const int _maxTentativi = 8;
+  static const int _maxTentativi = 20;
+
+  /// Controllo periodico: se la diretta resta muta (dati che non arrivano,
+  /// rete messa a riposo dal telefono) la si ricollega da soli.
+  Timer? _sorveglianza;
+  DateTime? _mutaDa;
+
+  /// Android: tiene sveglio il Wi-Fi mentre la radio suona a schermo spento.
+  static const MethodChannel _rete = MethodChannel('it.radio.studio96/rete');
 
   RadioHandler() {
     mediaItem.add(_creaMediaItem('', null));
@@ -45,6 +56,35 @@ class RadioHandler extends BaseAudioHandler {
     });
     aggiornaInfo();
     _timer = Timer.periodic(Radio96.intervalloAggiornamento, (_) => aggiornaInfo());
+    _sorveglianza = Timer.periodic(const Duration(seconds: 5), (_) => _controlla());
+  }
+
+  void _controlla() {
+    if (!_vuoleSuonare || _attesaInCorso) {
+      _mutaDa = null;
+      return;
+    }
+    // In attesa di dati (buffering) o fermo: dopo 15 secondi si ricollega.
+    final suonaDavvero =
+        _player.playing && _player.processingState == ProcessingState.ready;
+    if (suonaDavvero) {
+      _mutaDa = null;
+      return;
+    }
+    _mutaDa ??= DateTime.now();
+    if (DateTime.now().difference(_mutaDa!) > const Duration(seconds: 15)) {
+      _mutaDa = null;
+      _gestisciErrore();
+    }
+  }
+
+  Future<void> _wifi(bool sveglio) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _rete.invokeMethod(sveglio ? 'tieniSveglia' : 'rilascia');
+    } catch (_) {
+      // Non disponibile: si va avanti lo stesso.
+    }
   }
 
   bool get staSuonando => _vuoleSuonare;
@@ -54,6 +94,8 @@ class RadioHandler extends BaseAudioHandler {
     erroreConnessione = false;
     _vuoleSuonare = true;
     _tentativi = 0;
+    _mutaDa = null;
+    unawaited(_wifi(true));
     await _avvia();
     unawaited(aggiornaInfo());
   }
@@ -103,6 +145,7 @@ class RadioHandler extends BaseAudioHandler {
   Future<void> pause() async {
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
+    unawaited(_wifi(false));
     await _player.stop();
   }
 
@@ -110,6 +153,7 @@ class RadioHandler extends BaseAudioHandler {
   Future<void> stop() async {
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
+    unawaited(_wifi(false));
     await _player.stop();
     await super.stop();
   }
@@ -186,6 +230,7 @@ class RadioHandler extends BaseAudioHandler {
     }
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
+    unawaited(_wifi(false));
     erroreConnessione = true;
     _player.stop();
     playbackState.add(playbackState.value.copyWith(
@@ -197,6 +242,8 @@ class RadioHandler extends BaseAudioHandler {
 
   Future<void> chiudi() async {
     _timer?.cancel();
+    _sorveglianza?.cancel();
+    await _wifi(false);
     await _player.dispose();
   }
 }
