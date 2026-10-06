@@ -156,13 +156,16 @@ if not icona.exists():
 cartella = APP / "src" / "main" / "res" / "drawable"
 cartella.mkdir(parents=True, exist_ok=True)
 shutil.copy(icona, cartella / "ic_notifica.png")
-# L'icona e' usata solo dal codice Dart: si chiede di non eliminarla in compilazione.
+# Le icone della notifica (la nostra e i pulsanti Play/Pausa/Stop di audio_service)
+# vengono cercate per nome mentre l'app gira: senza questa regola la compilazione
+# le elimina come "inutilizzate" e Android non riesce a creare il lettore
+# ("You must specify an icon resource id to build a CustomAction").
 raw = APP / "src" / "main" / "res" / "raw"
 raw.mkdir(parents=True, exist_ok=True)
 (raw / "keep.xml").write_text(
     '<?xml version="1.0" encoding="utf-8"?>\n'
     '<resources xmlns:tools="http://schemas.android.com/tools"\n'
-    '    tools:keep="@drawable/ic_notifica" />\n')
+    '    tools:keep="@drawable/ic_notifica,@drawable/audio_service_*" />\n')
 
 # 3 e 4. Firma e nome del pacchetto ---------------------------------------------
 gradle = APP / "build.gradle.kts"
