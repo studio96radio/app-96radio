@@ -17,6 +17,14 @@ class RadioHandler extends BaseAudioHandler {
   /// true se l'ultima connessione allo stream è fallita.
   bool erroreConnessione = false;
 
+  /// true quando l'ascoltatore vuole sentire la radio (ha premuto Play e non
+  /// ha messo in pausa). Serve per riconnettersi da soli se la diretta cade.
+  bool _vuoleSuonare = false;
+  bool _riconnessioneInCorso = false;
+  bool _attesaInCorso = false;
+  int _tentativi = 0;
+  static const int _maxTentativi = 8;
+
   RadioHandler() {
     mediaItem.add(_creaMediaItem('', null));
     _player.playbackEventStream.listen(
@@ -24,38 +32,84 @@ class RadioHandler extends BaseAudioHandler {
       onError: (Object e, StackTrace st) => _gestisciErrore(),
     );
     _player.playingStream.listen((_) => _aggiornaStato());
+    // Android: quando il server chiude la connessione la diretta risulta
+    // "finita" (completed). Per una radio non deve succedere: si riconnette.
+    _player.processingStateStream.listen((stato) {
+      if (stato == ProcessingState.completed && _vuoleSuonare) _gestisciErrore();
+      if (stato == ProcessingState.ready && _vuoleSuonare) {
+        // Diretta ripartita: si torna allo stato normale.
+        _tentativi = 0;
+        _riconnessioneInCorso = false;
+        _aggiornaStato();
+      }
+    });
     aggiornaInfo();
     _timer = Timer.periodic(Radio96.intervalloAggiornamento, (_) => aggiornaInfo());
   }
 
-  bool get staSuonando => _player.playing;
+  bool get staSuonando => _vuoleSuonare;
 
   @override
   Future<void> play() async {
     erroreConnessione = false;
+    _vuoleSuonare = true;
+    _tentativi = 0;
+    await _avvia();
+    unawaited(aggiornaInfo());
+  }
+
+  /// Collega (o ricollega) la diretta "fresca", senza ritardi accumulati.
+  Future<void> _avvia() async {
     try {
-      if (_player.processingState == ProcessingState.idle) {
-        // Ogni volta riparte dalla diretta "fresca", senza ritardi accumulati.
+      if (_player.processingState == ProcessingState.idle ||
+          _player.processingState == ProcessingState.completed) {
         await _player.setAudioSource(
           AudioSource.uri(Uri.parse(Radio96.streamUrl)),
           preload: true,
         );
       }
+      if (!_vuoleSuonare) return;
       // Non si attende: per just_audio il Future di play() termina solo alla pausa.
       unawaited(_player.play());
-      unawaited(aggiornaInfo());
     } catch (_) {
       _gestisciErrore();
     }
   }
 
+  /// La diretta si è interrotta da sola (rete, server): si riprova dopo una
+  /// breve attesa, senza che l'ascoltatore debba premere di nuovo Play.
+  Future<void> _riconnetti() async {
+    if (_attesaInCorso || !_vuoleSuonare) return;
+    _attesaInCorso = true;
+    _riconnessioneInCorso = true;
+    _tentativi++;
+    // Intanto la notifica resta attiva (Android non deve chiudere il servizio
+    // audio) e il pulsante mostra il caricamento.
+    playbackState.add(playbackState.value.copyWith(
+      controls: [MediaControl.pause, MediaControl.stop],
+      processingState: AudioProcessingState.buffering,
+      playing: true,
+    ));
+    await Future.delayed(Duration(seconds: _tentativi < 3 ? 1 : 5));
+    _attesaInCorso = false;
+    if (!_vuoleSuonare) return;
+    await _player.stop();
+    await _avvia();
+  }
+
   /// Per una diretta "pausa" significa fermare lo stream:
   /// alla ripresa si riascolta la diretta in tempo reale.
   @override
-  Future<void> pause() => _player.stop();
+  Future<void> pause() async {
+    _vuoleSuonare = false;
+    _riconnessioneInCorso = false;
+    await _player.stop();
+  }
 
   @override
   Future<void> stop() async {
+    _vuoleSuonare = false;
+    _riconnessioneInCorso = false;
     await _player.stop();
     await super.stop();
   }
@@ -66,7 +120,7 @@ class RadioHandler extends BaseAudioHandler {
   @override
   Future<void> onTaskRemoved() => stop();
 
-  Future<void> alterna() => _player.playing ? pause() : play();
+  Future<void> alterna() => _vuoleSuonare ? pause() : play();
 
   /// Legge dal sito il brano in onda e, se è cambiato, aggiorna titolo e copertina.
   Future<void> aggiornaInfo() async {
@@ -105,6 +159,8 @@ class RadioHandler extends BaseAudioHandler {
   }
 
   void _aggiornaStato() {
+    // Durante la riconnessione lo stato lo decide _riconnetti().
+    if (_riconnessioneInCorso) return;
     const stati = {
       ProcessingState.idle: AudioProcessingState.idle,
       ProcessingState.loading: AudioProcessingState.loading,
@@ -124,6 +180,12 @@ class RadioHandler extends BaseAudioHandler {
   }
 
   void _gestisciErrore() {
+    if (_vuoleSuonare && _tentativi < _maxTentativi) {
+      _riconnetti();
+      return;
+    }
+    _vuoleSuonare = false;
+    _riconnessioneInCorso = false;
     erroreConnessione = true;
     _player.stop();
     playbackState.add(playbackState.value.copyWith(
