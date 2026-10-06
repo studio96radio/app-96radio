@@ -72,12 +72,17 @@ if 'android:scheme="https"' not in m:
 manifest.write_text(m)
 
 # 2. MainActivity --------------------------------------------------------------
-# Compatibile con la musica in background (audio_service) e con un "blocco Wi-Fi":
-# mentre la radio suona, il Wi-Fi non va a riposo a schermo spento.
+# Compatibile con la musica in background (audio_service), con un "blocco Wi-Fi"
+# (mentre la radio suona il Wi-Fi non va a riposo a schermo spento) e con la
+# richiesta del permesso per le notifiche al primo avvio.
 MAIN_ACTIVITY = """package {pkg}
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.Bundle
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -85,6 +90,17 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {{
     companion object {{
         private var wifiLock: WifiManager.WifiLock? = null
+    }}
+
+    // Android 13 e successivi: al primo avvio chiede il permesso per le notifiche.
+    // Senza, il lettore non compare (tendina e schermata di blocco) e alcuni
+    // telefoni (es. Oppo) chiudono la radio dopo pochi minuti a schermo spento.
+    override fun onCreate(savedInstanceState: Bundle?) {{
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {{
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 96)
+        }}
     }}
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {{
@@ -130,6 +146,23 @@ for f in attivita:
     if not pkg:
         fail(f"package non trovato in {f}")
     f.write_text(MAIN_ACTIVITY.format(pkg=pkg.group(1)))
+
+# 2b. Icona della notifica (lettore nella tendina e sulla schermata di blocco):
+# logo bianco su trasparente, come vuole Android.
+import shutil
+icona = ROOT / "assets" / "ic_notifica.png"
+if not icona.exists():
+    fail("assets/ic_notifica.png non trovato")
+cartella = APP / "src" / "main" / "res" / "drawable"
+cartella.mkdir(parents=True, exist_ok=True)
+shutil.copy(icona, cartella / "ic_notifica.png")
+# L'icona e' usata solo dal codice Dart: si chiede di non eliminarla in compilazione.
+raw = APP / "src" / "main" / "res" / "raw"
+raw.mkdir(parents=True, exist_ok=True)
+(raw / "keep.xml").write_text(
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<resources xmlns:tools="http://schemas.android.com/tools"\n'
+    '    tools:keep="@drawable/ic_notifica" />\n')
 
 # 3 e 4. Firma e nome del pacchetto ---------------------------------------------
 gradle = APP / "build.gradle.kts"
