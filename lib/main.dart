@@ -41,6 +41,7 @@ Future<void> main() async {
       androidNotificationChannelId: 'it.radio.studio96.audio',
       androidNotificationChannelName: '96 RADIO',
       androidNotificationOngoing: true,
+      androidNotificationIcon: 'drawable/ic_notifica',
       androidStopForegroundOnPause: true,
     ),
   );
