@@ -72,18 +72,64 @@ if 'android:scheme="https"' not in m:
 manifest.write_text(m)
 
 # 2. MainActivity --------------------------------------------------------------
+# Compatibile con la musica in background (audio_service) e con un "blocco Wi-Fi":
+# mentre la radio suona, il Wi-Fi non va a riposo a schermo spento.
+MAIN_ACTIVITY = """package {pkg}
+
+import android.content.Context
+import android.net.wifi.WifiManager
+import com.ryanheise.audioservice.AudioServiceActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity : AudioServiceActivity() {{
+    companion object {{
+        private var wifiLock: WifiManager.WifiLock? = null
+    }}
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {{
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "it.radio.studio96/rete")
+            .setMethodCallHandler {{ call, result ->
+                when (call.method) {{
+                    "tieniSveglia" -> {{ acquisisci(); result.success(null) }}
+                    "rilascia" -> {{ rilascia(); result.success(null) }}
+                    else -> result.notImplemented()
+                }}
+            }}
+    }}
+
+    private fun acquisisci() {{
+        try {{
+            if (wifiLock == null) {{
+                val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                @Suppress("DEPRECATION")
+                wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "96radio:diretta")
+                wifiLock?.setReferenceCounted(false)
+            }}
+            if (wifiLock?.isHeld == false) wifiLock?.acquire()
+        }} catch (e: Exception) {{
+        }}
+    }}
+
+    private fun rilascia() {{
+        try {{
+            if (wifiLock?.isHeld == true) wifiLock?.release()
+        }} catch (e: Exception) {{
+        }}
+    }}
+}}
+"""
+
 attivita = list((APP / "src" / "main").rglob("MainActivity.kt"))
 if not attivita:
     fail("MainActivity.kt non trovata")
 for f in attivita:
     t = f.read_text()
-    t = t.replace("import io.flutter.embedding.android.FlutterActivity",
-                  "import com.ryanheise.audioservice.AudioServiceActivity")
-    t = re.sub(r"class MainActivity\s*:\s*FlutterActivity\(\)",
-               "class MainActivity : AudioServiceActivity()", t)
-    if "AudioServiceActivity()" not in t:
-        fail(f"non riesco a modificare {f}")
-    f.write_text(t)
+    pkg = re.search(r"^package\s+([\w.]+)", t, re.M)
+    if not pkg:
+        fail(f"package non trovato in {f}")
+    f.write_text(MAIN_ACTIVITY.format(pkg=pkg.group(1)))
 
 # 3 e 4. Firma e nome del pacchetto ---------------------------------------------
 gradle = APP / "build.gradle.kts"
