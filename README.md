@@ -15,5 +15,9 @@ Link, colori, indirizzo dello stream: tutto in `lib/config.dart`.
 
 ## Compilazione
 
-La fa Codemagic con il file `codemagic.yaml` (workflow "iPhone -> TestFlight").
+La fa Codemagic con il file `codemagic.yaml`:
+
+- workflow "iPhone -> TestFlight"
+- workflow "Android -> AAB" (prepara la parte Android con `scripts/android_setup.py`;
+  la chiave di firma si chiama `chiave_android_96radio` su Codemagic)
 Bundle ID: `it.radio.studio96` · versione `8.0.0`.

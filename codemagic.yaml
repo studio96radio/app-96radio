@@ -1,5 +1,7 @@
 # Compilazione automatica dell'app 96 RADIO su Codemagic.
-# Ogni avvio: costruisce la versione iPhone e la invia a TestFlight.
+# - "iPhone -> TestFlight": costruisce la versione iPhone e la invia a TestFlight.
+# - "Android -> AAB": costruisce la versione Android (AAB per Google Play + APK da
+#   installare a mano sui telefoni di prova). Si scarica dalla pagina della build.
 workflows:
   ios-testflight:
     name: iPhone -> TestFlight
@@ -21,7 +23,7 @@ workflows:
     scripts:
       - name: Crea la parte iPhone del progetto
         script: |
-          flutter create --org it.radio --project-name studio96 --platforms ios .
+          flutter create --org it.radio --project-name studio96 --platforms ios,android .
       - name: Impostazioni iPhone (nome, audio in background, crittografia)
         script: |
           PLIST=ios/Runner/Info.plist
@@ -51,3 +53,42 @@ workflows:
         auth: integration
         # Solo tester interni: niente invio alla revisione per tester esterni
         submit_to_testflight: false
+
+  android-aab:
+    name: Android -> AAB
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      android_signing:
+        # Nome della chiave caricata in Codemagic
+        # (Settings > Code signing identities > Android keystores)
+        - chiave_android_96radio
+      vars:
+        VERSIONE: "8.0.0"
+        # Nome del pacchetto Android: provvisorio finche' non si decide
+        # (dipende dalla risposta di Looksomething sul trasferimento)
+        PACCHETTO_ANDROID: "it.radio.studio96"
+    scripts:
+      - name: Crea la parte Android del progetto
+        script: |
+          flutter create --org it.radio --project-name studio96 --platforms android .
+      - name: Impostazioni Android (nome, audio in background, firma, pacchetto)
+        script: |
+          python3 scripts/android_setup.py
+      - name: Pacchetti, icona e schermata di apertura
+        script: |
+          flutter pub get
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
+      - name: Compila l'app Android
+        script: |
+          flutter build appbundle --release \
+            --build-name=$VERSIONE \
+            --build-number=$((800 + BUILD_NUMBER))
+          flutter build apk --release \
+            --build-name=$VERSIONE \
+            --build-number=$((800 + BUILD_NUMBER))
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+      - build/app/outputs/flutter-apk/app-release.apk

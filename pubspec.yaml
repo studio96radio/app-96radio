@@ -33,9 +33,14 @@ flutter:
 # Icona dell'app generata da assets/icon-1024.png (comando: dart run flutter_launcher_icons)
 flutter_launcher_icons:
   ios: true
-  android: false
+  android: true
   image_path: "assets/icon-1024.png"
   remove_alpha_ios: true
+  # Android 8+: icona "adattiva" (sfondo sfumato + logo bianco)
+  adaptive_icon_background: "assets/android-icon-bg.png"
+  adaptive_icon_foreground: "assets/logo-white.png"
+  adaptive_icon_foreground_inset: 20
+  min_sdk_android: 21
 
 # Schermata di apertura (splash): logo al centro sulle sfumature dell'app
 # (comando: dart run flutter_native_splash:create)
@@ -43,5 +48,9 @@ flutter_native_splash:
   background_image: assets/splash-bg.png
   image: assets/splash-logo.png
   ios: true
-  android: false
+  android: true
   web: false
+  # Android 12 e successivi: logo al centro su tinta unita
+  android_12:
+    image: assets/splash-logo-android12.png
+    color: "#3B0F45"
