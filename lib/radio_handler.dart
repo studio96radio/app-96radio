@@ -60,6 +60,12 @@ class RadioHandler extends BaseAudioHandler {
     await super.stop();
   }
 
+  /// Android: quando l'app viene chiusa dalle app recenti (scorrendola via),
+  /// la diretta si ferma e la notifica sparisce. Senza questo, su alcuni
+  /// telefoni (es. Realme) la musica continuava a suonare.
+  @override
+  Future<void> onTaskRemoved() => stop();
+
   Future<void> alterna() => _player.playing ? pause() : play();
 
   /// Legge dal sito il brano in onda e, se è cambiato, aggiorna titolo e copertina.
@@ -108,8 +114,9 @@ class RadioHandler extends BaseAudioHandler {
     };
     final suona = _player.playing;
     playbackState.add(playbackState.value.copyWith(
-      controls: [suona ? MediaControl.pause : MediaControl.play],
-      androidCompactActionIndices: const [0],
+      // Play/pausa + "stop" per chiudere la radio direttamente dalla notifica
+      controls: [suona ? MediaControl.pause : MediaControl.play, MediaControl.stop],
+      androidCompactActionIndices: const [0, 1],
       systemActions: const {},
       processingState: stati[_player.processingState]!,
       playing: suona,
