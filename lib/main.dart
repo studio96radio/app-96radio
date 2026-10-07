@@ -101,6 +101,44 @@ class _SchermataDirettaState extends State<SchermataDiretta>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _controllaBatteria());
+  }
+
+  /// Android: se il telefono applica il risparmio batteria a 96 RADIO, lo
+  /// annota nel diario e (una volta sola) spiega come disattivarlo.
+  Future<void> _controllaBatteria() async {
+    final ottimizzata = await RadioHandler.batteriaOttimizzata();
+    RadioHandler.annota('risparmio batteria sull\'app: ${ottimizzata ? "ATTIVO" : "disattivato"}');
+    const chiave = 'avviso_batteria_mostrato';
+    if (!ottimizzata || (preferenze.getBool(chiave) ?? false) || !mounted) return;
+    await preferenze.setBool(chiave, true);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ascolto senza interruzioni'),
+        content: const Text(
+          'Alcuni telefoni (OPPO, Realme, Xiaomi e altri) fermano la radio '
+          'dopo un po\' a schermo spento, per risparmiare batteria.\n\n'
+          'Per evitarlo, nella pagina che si apre tocca «Batteria» '
+          '(o «Utilizzo batteria») e consenti l\'attività in background '
+          'a 96 RADIO.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Più tardi'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              RadioHandler.apriImpostazioniApp();
+            },
+            child: const Text('Apri impostazioni'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

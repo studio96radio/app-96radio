@@ -63,14 +63,17 @@ class RadioHandler extends BaseAudioHandler {
   bool _riconnessioneInCorso = false;
   bool _attesaInCorso = false;
   int _tentativi = 0;
-  static const int _maxTentativi = 20;
+  /// Circa 10 minuti di tentativi prima di arrendersi (stream giù a lungo).
+  static const int _maxTentativi = 120;
 
   /// Controllo periodico: se la diretta resta muta (dati che non arrivano,
   /// rete messa a riposo dal telefono) la si ricollega da soli.
   Timer? _sorveglianza;
   DateTime? _mutaDa;
 
-  /// Android: tiene sveglio il Wi-Fi mentre la radio suona a schermo spento.
+  /// Android: tiene svegli telefono (processore) e Wi-Fi mentre la radio suona
+  /// a schermo spento. Senza, alcuni telefoni (es. Oppo) "congelano" l'app e
+  /// la diretta resta muta per minuti, o si ferma del tutto.
   static const MethodChannel _rete = MethodChannel('it.radio.studio96/rete');
 
   RadioHandler() {
@@ -131,10 +134,29 @@ class RadioHandler extends BaseAudioHandler {
     if (!Platform.isAndroid) return;
     try {
       await _rete.invokeMethod(sveglio ? 'tieniSveglia' : 'rilascia');
-      annota('wifi ${sveglio ? "tenuto sveglio" : "rilasciato"}');
+      annota(sveglio ? 'telefono e wifi tenuti svegli' : 'telefono e wifi rilasciati');
     } catch (e) {
-      annota('ERRORE wifi: $e');
+      annota('ERRORE sveglia: $e');
     }
+  }
+
+  /// Android: true se il telefono applica il risparmio batteria a 96 RADIO
+  /// (e quindi può fermarla a schermo spento).
+  static Future<bool> batteriaOttimizzata() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _rete.invokeMethod<bool>('batteriaOttimizzata') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Android: apre la pagina "Info app" di 96 RADIO (da lì: Batteria).
+  static Future<void> apriImpostazioniApp() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _rete.invokeMethod('apriImpostazioni');
+    } catch (_) {}
   }
 
   bool get staSuonando => _vuoleSuonare;
@@ -185,7 +207,9 @@ class RadioHandler extends BaseAudioHandler {
       processingState: AudioProcessingState.buffering,
       playing: true,
     ));
-    await Future.delayed(Duration(seconds: _tentativi < 3 ? 1 : 5));
+    // Primi tentativi rapidi, poi ogni 5 secondi.
+    final attesa = _tentativi <= 2 ? 1 : (_tentativi <= 4 ? 3 : 5);
+    await Future.delayed(Duration(seconds: attesa));
     _attesaInCorso = false;
     if (!_vuoleSuonare) return;
     await _player.stop();
@@ -195,8 +219,8 @@ class RadioHandler extends BaseAudioHandler {
   /// Per una diretta "pausa" significa fermare lo stream:
   /// alla ripresa si riascolta la diretta in tempo reale.
   @override
-  Future<void> pause() async {
-    annota('PAUSA');
+  Future<void> pause({String origine = 'notifica o sistema'}) async {
+    annota('PAUSA ($origine)');
     _vuoleSuonare = false;
     _riconnessioneInCorso = false;
     unawaited(_wifi(false));
@@ -222,7 +246,21 @@ class RadioHandler extends BaseAudioHandler {
     return stop();
   }
 
-  Future<void> alterna() => _vuoleSuonare ? pause() : play();
+  /// Pulsante Play/Pausa dentro l'app.
+  Future<void> alterna() =>
+      _vuoleSuonare ? pause(origine: 'pulsante app') : play();
+
+  /// Tasti di cuffie, auricolari Bluetooth, autoradio: si annotano nel diario
+  /// per capire da dove arriva una pausa "misteriosa".
+  @override
+  Future<void> click([MediaButton button = MediaButton.media]) async {
+    annota('tasto cuffie/bluetooth: ${button.name}');
+    if (_vuoleSuonare) {
+      await pause(origine: 'tasto cuffie/bluetooth');
+    } else {
+      await play();
+    }
+  }
 
   /// Legge dal sito il brano in onda e, se è cambiato, aggiorna titolo e copertina.
   Future<void> aggiornaInfo() async {
