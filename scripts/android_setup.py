@@ -72,17 +72,22 @@ if 'android:scheme="https"' not in m:
 manifest.write_text(m)
 
 # 2. MainActivity --------------------------------------------------------------
-# Compatibile con la musica in background (audio_service), con un "blocco Wi-Fi"
-# (mentre la radio suona il Wi-Fi non va a riposo a schermo spento) e con la
+# Compatibile con la musica in background (audio_service), con "blocchi" Wi-Fi e
+# processore (mentre la radio suona il telefono non va a riposo a schermo spento),
+# con il controllo del risparmio batteria e con la
 # richiesta del permesso per le notifiche al primo avvio.
 MAIN_ACTIVITY = """package {pkg}
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -90,6 +95,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {{
     companion object {{
         private var wifiLock: WifiManager.WifiLock? = null
+        private var wakeLock: PowerManager.WakeLock? = null
     }}
 
     // Android 13 e successivi: al primo avvio chiede il permesso per le notifiche.
@@ -110,6 +116,18 @@ class MainActivity : AudioServiceActivity() {{
                 when (call.method) {{
                     "tieniSveglia" -> {{ acquisisci(); result.success(null) }}
                     "rilascia" -> {{ rilascia(); result.success(null) }}
+                    "batteriaOttimizzata" -> {{
+                        val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+                        result.success(!pm.isIgnoringBatteryOptimizations(packageName))
+                    }}
+                    "apriImpostazioni" -> {{
+                        try {{
+                            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + packageName)))
+                        }} catch (e: Exception) {{
+                        }}
+                        result.success(null)
+                    }}
                     else -> result.notImplemented()
                 }}
             }}
@@ -126,11 +144,25 @@ class MainActivity : AudioServiceActivity() {{
             if (wifiLock?.isHeld == false) wifiLock?.acquire()
         }} catch (e: Exception) {{
         }}
+        // Processore sveglio: a schermo spento il telefono non "congela" la radio
+        try {{
+            if (wakeLock == null) {{
+                val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "96radio:diretta")
+                wakeLock?.setReferenceCounted(false)
+            }}
+            if (wakeLock?.isHeld == false) wakeLock?.acquire()
+        }} catch (e: Exception) {{
+        }}
     }}
 
     private fun rilascia() {{
         try {{
             if (wifiLock?.isHeld == true) wifiLock?.release()
+        }} catch (e: Exception) {{
+        }}
+        try {{
+            if (wakeLock?.isHeld == true) wakeLock?.release()
         }} catch (e: Exception) {{
         }}
     }}
