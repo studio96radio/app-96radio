@@ -205,6 +205,12 @@ g = gradle.read_text()
 
 g = re.sub(r'applicationId = "[^"]*"', f'applicationId = "{PACCHETTO}"', g, count=1)
 
+# Livello API: Google Play chiede come target almeno Android 16 (API 36)
+g, n1 = re.subn(r'compileSdk = [^\n]+', 'compileSdk = maxOf(36, flutter.compileSdkVersion)', g, count=1)
+g, n2 = re.subn(r'targetSdk = [^\n]+', 'targetSdk = maxOf(36, flutter.targetSdkVersion)', g, count=1)
+if not (n1 and n2):
+    fail("compileSdk/targetSdk non trovati in build.gradle.kts")
+
 FIRMA = """    signingConfigs {
         create("release") {
             // Chiave caricata su Codemagic (Code signing identities > Android keystores)
@@ -230,4 +236,4 @@ if 'getByName("release")' not in g:
     fail("firma release non impostata")
 gradle.write_text(g)
 
-print(f"Android pronto: pacchetto {PACCHETTO}, firma release, servizio audio.")
+print(f"Android pronto: pacchetto {PACCHETTO}, target API 36+, firma release, servizio audio.")
