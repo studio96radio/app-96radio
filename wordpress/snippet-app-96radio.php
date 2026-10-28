@@ -23,7 +23,6 @@ function s96_app_predefiniti() {
 			array( 'titolo' => 'Notizie', 'url' => 'https://www.studio96.it/home-2/home-2-2/', 'icona' => 'notizie' ),
 			array( 'titolo' => 'Podcast', 'url' => 'https://www.studio96.it/home-2/podcast/', 'icona' => 'podcast' ),
 			array( 'titolo' => 'Musica', 'url' => 'https://www.studio96.it/podcast-3/', 'icona' => 'musica' ),
-			array( 'titolo' => '96 Sport', 'url' => 'https://www.studio96.it/category/96-sport/', 'icona' => 'sport' ),
 			array( 'titolo' => 'Studio96 Informazione', 'url' => 'https://www.studio96informazione.it/', 'icona' => 'articolo' ),
 			array( 'titolo' => 'Contatti', 'url' => 'https://www.studio96.it/contatti/', 'icona' => 'contatti' ),
 		),
