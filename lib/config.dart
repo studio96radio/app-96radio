@@ -51,8 +51,6 @@ class Radio96 {
         'https://www.studio96.it/home-2/podcast/'),
     Collegamento('Musica', Icons.library_music_rounded,
         'https://www.studio96.it/podcast-3/'),
-    Collegamento('96 Sport', Icons.sports_soccer_rounded,
-        'https://www.studio96.it/category/96-sport/'),
     Collegamento('Studio96 Informazione', Icons.article_rounded,
         'https://www.studio96informazione.it/'),
     Collegamento('Contatti', Icons.mail_rounded,
