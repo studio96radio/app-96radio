@@ -66,9 +66,9 @@ workflows:
         - chiave_android_96radio
       vars:
         VERSIONE: "8.1.0"
-        # Nome del pacchetto Android: provvisorio finche' non si decide
-        # (dipende dalla risposta di Looksomething sul trasferimento)
-        PACCHETTO_ANDROID: "it.radio.studio96"
+        # Nome del pacchetto Android: quello dell'app 96 RADIO gia' sul Play Store
+        # (trasferita da Looksomething all'account Radio Studio 96, ottobre 2026)
+        PACCHETTO_ANDROID: "it.radio.radio96"
     scripts:
       - name: Crea la parte Android del progetto
         script: |
